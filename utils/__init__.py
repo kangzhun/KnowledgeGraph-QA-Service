@@ -26,3 +26,8 @@ def str2unicode(utf_str):
         return utf_str.decode('utf-8')
     else:
         return utf_str
+
+
+def normalize_query(query):
+    normal_query = unicode2str(query).strip()
+    return normal_query
