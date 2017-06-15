@@ -20,43 +20,77 @@ class TemplateBot(BaseLogger):
     def _match_predicate(self):
         self.debug('>>> start _match_predicate <<<')
         templates_docs = self.template_core.search_with_seg(self.query, query_fields=['key_index'],)
-        templates_list = list(templates_docs)
-        predicates = []
-        self.debug("got templates_docs=%s", len(templates_docs))
-        if templates_list:
-            for tmp_item in templates_list:
-                pattern_str = tmp_item.get('pattern', '')
-                predicate_value = tmp_item.get('predicate_value', '')
-                if pattern_str and predicate_value:
-                    pattern = re.compile(ur'%s' % pattern_str)
-                    is_match = pattern.match(str2unicode(self.query))
-                    if is_match:
-                        self.debug('got match pattern=%s, predicate_value=%s', pattern_str, predicate_value)
-                        predicates.append(predicate_value)
-                    else:
-                        self.debug("don't match pattern%s", pattern_str)
+        docs = []
+        for tmp_item in templates_docs:
+            pattern_str = tmp_item.get('pattern', '')
+            predicates = tmp_item.get('predicates', [])
+            priority = tmp_item.get('priority', 4)
+            missing_tuple = tmp_item.get('missing_tuple', '')
+            doc = {'pattern': pattern_str, 'predicates': predicates,
+                   'priority': priority, 'missing_tuple': missing_tuple}
+            pattern = re.compile(ur'%s' % pattern_str)
+            is_match = pattern.match(str2unicode(self.query))
+            if is_match:
+                self.debug('got match pattern=%s, predicates=%s, priority=%s, missing_tuple=%s',
+                           pattern_str, json.dumps(predicates, ensure_ascii=False), priority, missing_tuple)
+                doc['match_str'] = is_match.group('title')
+                if priority > 1:
+                    docs.append(doc)
                 else:
-                    self.warn('@@@@@@@@@@@@@@@@@@@@@@@ unexpected pattern_str=%s, predicate_value=%s',
-                              pattern_str, predicate_value)
-        else:
-            self.debug("retrieved None templates_docs")
-        self.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ don't match any templates ")
+                    docs = [doc, ]
+                    self.debug(">>> end _match_predicate <<<")
+                    return docs
+            else:
+                self.debug("don't match pattern%s", pattern_str)
         self.debug(">>> end _match_predicate <<<")
-        return predicates
+        return docs
 
-    def _match_subject(self):
-        self.debug('>>> start _match_subject <<<')
-        triple_docs = self.triple_core.search_with_seg(self.query, query_fields=['triple_subject_index'], rows=1)
+    def _match_subject_and_object(self, sentence, missing_triple):
+        self.debug('>>> start _match_subject_and_object <<<')
+        self.debug('sentence=%s, missing_triple=%s', sentence, missing_triple)
+        ret = ''
+        if missing_triple == 'object':
+            target_field = 'triple_subject'
+            query_fields = ['triple_subject_index']
+        elif missing_triple == 'subject':
+            target_field = 'triple_object'
+            query_fields = ['triple_subject_index']
+        else:
+            self.debug('@@@@@@@@@@@@@@@@@@@@@@@@@@@ unexpected values missing_triple=%s', missing_triple)
+            return ret
+        self.debug('target_field=%s, query_fields=%s', target_field, json.dumps(query_fields))
+        triple_docs = self.triple_core.search_with_seg(sentence, query_fields=query_fields, rows=1)
         triple_list = list(triple_docs)
-        subject_ret = ''
         self.debug("got triple_docs=%s", json.dumps(triple_list, ensure_ascii=False))
         if triple_list:
-            subject_ret = triple_list[0].get('triple_subject', '')
-            self.debug("got subject=%s", subject_ret)
+            ret = triple_list[0].get(target_field, '')
+            self.debug("got ret=%s", ret)
         else:
             self.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@ triple_docs is None")
-        self.debug(">>> end _match_subject <<<")
-        return subject_ret
+        self.debug(">>> end _match_subject_and_object <<<")
+        return ret
+
+    def get_triple(self):
+        self.debug('>>> start get_triple <<<')
+        template_docs = self._match_predicate()
+        triple_docs = list()
+        for doc in template_docs:
+            missing_tuple = doc.get('missing_tuple', '')
+            match_str = doc.get('match_str', '')
+            predicates = doc.get('predicates', [])
+            if missing_tuple == 'subject':
+                triple_subject = self._match_subject_and_object(match_str, missing_tuple)
+                triple_doc = {'subject': triple_subject, 'predicate': predicates, 'object': ""}
+                triple_docs.append(triple_doc)
+            elif missing_tuple == 'object':
+                triple_object = self._match_subject_and_object(match_str, missing_tuple)
+                triple_doc = {'subject': "", 'predicate': predicates, 'object': triple_object}
+                triple_docs.append(triple_doc)
+            else:
+                self.warn('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ unexpected value missing_tuple=%s', missing_tuple)
+        self.debug('triple_docs=%s', json.dumps(triple_docs, ensure_ascii=False))
+        self.debug('>>> end get_triple <<<')
+        return triple_docs
 
     def reply(self, query):
         """
@@ -66,17 +100,10 @@ class TemplateBot(BaseLogger):
         """
         answer = {}
         self.query = normalize_query(query)
-        self.debug("[ start ] query=%s", self.query)
+        self.debug("[start] query=%s", self.query)
         if self.query:
-            predicates = self._match_predicate()  # 匹配谓语, 并把主语部分返回，用于后续检索主语
-            subject = self._match_subject()
-            if not subject:
-                self.warn('@@@@@@@@@@@@@@@@@@@ unexpected subject is None')
-            elif not predicates:
-                self.warn('@@@@@@@@@@@@@@@@@@@ unexpected predicate is None')
-            else:
-                self.debug('start search knowledge_db with subject=%s, predicate=%s', subject, json.dumps(predicates))
-                answer = self.knowledge_db.search(subject=subject, predicates=predicates)
+            triple_docs = self.get_triple()
+            answer = self.knowledge_db.search(triple_doc=triple_docs)
         else:
             self.warn("@@@@@@@@@@@@@@@@@@@ unexpected query is None")
         if answer:
@@ -86,4 +113,5 @@ class TemplateBot(BaseLogger):
             ret = '\n'.join(ret)
         else:
             ret = ''
+        self.debug("[end] query=%s", self.query)
         return ret

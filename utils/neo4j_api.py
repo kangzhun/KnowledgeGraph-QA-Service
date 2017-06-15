@@ -81,28 +81,37 @@ class KnowledgeDBAPI(BaseLogger):
         self.debug('>>> end search_neighbors_info <<<')
         return docs
 
-    def search_with_triple(self, subject, predicates):
+    def search_with_triple(self, triple_doc):
         self.debug('>>> start search_with_triple <<<')
-        self.debug('subject=%s, predicates=%s', subject, json.dumps(predicates, ensure_ascii=False))
+        self.debug('triple_doc=%s', len(triple_doc))
         answer = {}
-        predicate_docs = self.property_collection.find({'uri': {'$in': predicates}})
-        if predicate_docs:
-            for doc_item in predicate_docs:
+        if triple_doc:
+            for triple_item in triple_doc:
                 tmp_answer = {}
-                if doc_item:  # 谓语存在则进行查询
-                    predicate_type = doc_item.get('type', '')
-                    predicate_value = unicode2str(doc_item.get('uri', ''))
+                triple_subject = triple_item.get('subject', "")
+                triple_object = triple_item.get('object', "")
+                triple_predicates = triple_item.get('predicates', [])
+                predicate_doc = self.property_collection.find({'uri': {'$in': triple_predicates}})
+                for predicate_item in predicate_doc:
+                    predicate_type = predicate_item.get('type', '')
+                    predicate_value = unicode2str(predicate_item.get('uri', ''))
                     self.debug('predicate_type=%s, predicate_value=%s', predicate_type, predicate_value)
                     if predicate_type == 'data_relationship':  # 谓语属于数据关系
-                        tmp_answer = self.search_node_info(subject, node_property=predicate_value)
+                        if triple_subject:
+                            tmp_answer = self.search_node_info(triple_subject, node_property=predicate_value)
+                        elif triple_object:
+                            pass
                     elif predicate_type == 'object_relationship':  # 谓语属于对象关系
-                        tmp_answer = self.search_neighbors_info(subject, predicate_value,
-                                                                node_property='name')
+                        if triple_subject:
+                            tmp_answer = self.search_neighbors_info(triple_subject, predicate_value,
+                                                                    node_property='name')
+                        elif triple_object:
+                            pass
                     else:
                         self.warn('@@@@@@@@@@@@@@@@@@@@@@@@ predicate_type is None')
                 answer = dict(answer, **tmp_answer)
         else:
-            self.warn('@@@@@@@@@@@@@@@@@@@@ predicates=%s, do not match', json.dumps(predicates, ensure_ascii=False))
+            self.warn('@@@@@@@@@@@@@@@@@@@@ unexpected value triple_doc=', json.dumps(triple_doc, ensure_ascii=False))
         self.debug('>>> end search_with_triple <<<')
         return answer
 
@@ -148,22 +157,28 @@ class KnowledgeDBAPI(BaseLogger):
         self.debug('ret=%s', json.dumps(ret, ensure_ascii=False))
         return ret
 
-    def search(self, subject="", predicates=[], query_str=""):
+    def search(self, triple_doc=[], query_str=""):
         self.debug('>>> start search <<<')
-        if not query_str:
-            answer = self.search_with_triple(subject, predicates)
-        else:
+        answer = {}
+        if triple_doc:
+            answer = self.search_with_triple(triple_doc)
+        elif query_str:
             answer = self.search_with_query(query_str)
+        else:
+            self.warn('@@@@@@@@@@@@@@@@@@@@@@@ unexpected values triple_doc=%s, query_str=%s',
+                      json.dumps(triple_doc), query_str)
         self.debug('>>> end search <<<')
         return answer
 
 
 if __name__ == '__main__':
     knowledge_db = KnowledgeDBAPI()
-    _ret = knowledge_db.search('桃花', ['common_consistedOf', ])
+    _triple_doc = [{'subject': '桃花', 'predicates': ['common_consistedOf', ], 'object': ""}]
+    _ret = knowledge_db.search(_triple_doc)
     print _ret
 
-    _ret = knowledge_db.search('细胞凋亡', ['biology_mechanism', 'biology_concept'])
+    _triple_doc = [{'subject': '细胞凋亡', 'predicates': ['biology_mechanism', 'biology_concept'], 'object': ""}]
+    _ret = knowledge_db.search(_triple_doc)
     print _ret
 
     _query_str = "MATCH (n {name: '桃花'})-[r: common_consistedOf]-(neighbors) RETURN neighbors.name"

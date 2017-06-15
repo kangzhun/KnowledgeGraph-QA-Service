@@ -4,7 +4,7 @@ import json
 import pysolr
 
 from logger import BaseLogger
-from utils import seg_doc_with_search, unicode2str
+from utils import seg_doc_with_search
 from config import SOLR_CORE_MAP, SOLR_DEFAULT_ROWS, SOLR_DEFAULT_RETURN_FIELDS
 
 
@@ -19,11 +19,6 @@ class SolrAPIHandler(BaseLogger):
         else:
             self.solr_client = None
             self.warn('@@@@@@@@@@@@@@@@@@@@@@@@@ core_name=%s not in SOLR_COREMAP', core_name)
-
-    def _seg_words(self, sentence):
-        words = seg_doc_with_search(sentence)
-        self.debug('sentence=%s, words=%s', sentence, json.dumps(words))
-        return words
 
     def search_index(self, query_str, **kwargs):
         self.debug('>>> start search_index <<<')
@@ -40,7 +35,7 @@ class SolrAPIHandler(BaseLogger):
         self.debug(">>> start search_with_seg <<<")
         docs = None
         if self.solr_client:
-            words_list = self._seg_words(unicode2str(query))
+            words_list = seg_doc_with_search(query)
             query_fields = kwargs.get("query_fields", [])
             search_fields = kwargs.get("search_fields", SOLR_DEFAULT_RETURN_FIELDS)
             rows = kwargs.get("rows", SOLR_DEFAULT_ROWS)
@@ -61,13 +56,14 @@ class SolrAPIHandler(BaseLogger):
             docs = self.solr_client.search(q, rows=rows, fl=','.join(search_fields))
         else:
             self.warn('@@@@@@@@@@@@@@@@@@@@@@ solr_client is None')
+        self.debug(">>> end search_with_seg <<<")
         return docs
 
 if __name__ == "__main__":
     _core_name = "biology-triple"
-    query_fields = ['triple_subject_index']
+    _query_fields = ['triple_subject_index']
     solr_api = SolrAPIHandler(_core_name)
-    _docs = solr_api.search_with_seg(u"胚胎是如何形成的", query_fields=query_fields)
+    _docs = solr_api.search_with_seg(u"胚胎是如何形成的", query_fields=_query_fields)
     for doc in _docs:
         print '#' * 100
         for key in doc.keys():
