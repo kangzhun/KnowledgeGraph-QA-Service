@@ -32,17 +32,22 @@ class KnowledgeDBAPI(BaseLogger):
         if name and node_property:
             condition = CYPER_TEMPLATE['node_property'] % (str2unicode(name), node_property)
             self.debug('condition=%s', condition)
-            data = self.graph.run(condition).data()
+            try:
+                data = self.graph.run(condition).data()
+            except Exception, e:
+                self.error('illegal query=%s', condition)
+                data = {}
             docs = self._extract_answer(data)
-            if docs:
-                self.debug('got node=%s, answer=%s', name, json.dumps(docs))
-            else:
+            if not docs:
                 self.debug('search equal_node name=%s, property=%s', name, node_property)
                 condition = CYPER_TEMPLATE['equal_node_property'] % (str2unicode(name), node_property)
                 self.debug('condition=%s', condition)
-                data = self.graph.run(condition).data()
+                try:
+                    data = self.graph.run(condition).data()
+                except Exception, e:
+                    self.error('illegal query=%s', condition)
+                    data = {}
                 docs = self._extract_answer(data)
-                self.debug('got equal_node=%s, answer=%s', name, json.dumps(docs))
         else:
             self.warn('@@@@@@@@@@@@@@ unexpected name=%s, property=%s', name, node_property)
         self.debug('>>> end search_node_info <<<')
@@ -65,24 +70,51 @@ class KnowledgeDBAPI(BaseLogger):
                 condition = CYPER_TEMPLATE['neighbors_data'] % \
                             (str2unicode(name), relationship)
             self.debug('condition=%s', condition)
-            data = self.graph.run(condition).data()
+            try:
+                data = self.graph.run(condition).data()
+            except Exception, e:
+                self.error('illegal query=%s', condition)
+                data = {}
             docs = self._extract_answer(data)
-            self.debug('got name=%s, answer=%s', name, json.dumps(docs))
         else:
             self.warn('@@@@@@@@@@@@@@ name is None')
         self.debug('>>> end search_neighbors_info <<<')
         return docs
 
     def search_with_triple(self, subject, predicates):
-        pass
+        self.debug('>>> start search_with_triple <<<')
+        self.debug('subject=%s, predicates=%s', subject, json.dumps(predicates, ensure_ascii=False))
+        answer = {}
+        predicate_docs = self.property_collection.find({'uri': {'$in': predicates}})
+        if predicate_docs:
+            for doc_item in predicate_docs:
+                tmp_answer = {}
+                if doc_item:  # 谓语存在则进行查询
+                    predicate_type = doc_item.get('type', '')
+                    predicate_value = unicode2str(doc_item.get('uri', ''))
+                    self.debug('predicate_type=%s, predicate_value=%s', predicate_type, predicate_value)
+                    if predicate_type == 'data_relationship':  # 谓语属于数据关系
+                        tmp_answer = self.search_node_info(subject, node_property=predicate_value)
+                    elif predicate_type == 'object_relationship':  # 谓语属于对象关系
+                        tmp_answer = self.search_neighbors_info(subject, predicate_value,
+                                                                node_property='name')
+                    else:
+                        self.warn('@@@@@@@@@@@@@@@@@@@@@@@@ predicate_type is None')
+                answer = dict(answer, **tmp_answer)
+        else:
+            self.warn('@@@@@@@@@@@@@@@@@@@@ predicates=%s, do not match', json.dumps(predicates, ensure_ascii=False))
+        self.debug('>>> end search_with_triple <<<')
+        return answer
 
     def search_with_query(self, query_str):
         self.debug('>>> start search_with_query_info <<<')
-        self.debug('search node with query_str%s', query_str)
-        data = self.graph.run(query_str).data()
+        self.debug('search node with query_str=%s', query_str)
+        try:
+            data = self.graph.run(query_str).data()
+        except Exception, e:
+            self.error('illegal query=%s', query_str)
+            data = {}
         docs = self._extract_answer(data)
-        if docs:
-            self.debug('answer=%s', json.dumps(docs))
         self.debug('>>> end search_with_query_info <<<')
         return docs
 
@@ -95,7 +127,7 @@ class KnowledgeDBAPI(BaseLogger):
                     value = doc[key]
                     if key not in ret.keys():
                         if value:
-                            self.debug('key=%s, value=%s', key, json.dumps(value))
+                            self.debug('key=%s, value=%s', key, json.dumps(value, ensure_ascii=False))
                             if isinstance(value, list):
                                 ret[key] = value
                             else:
@@ -104,7 +136,7 @@ class KnowledgeDBAPI(BaseLogger):
                             self.warn('@@@@@@@@@@@@@@@@@@@@@@@ key=%s, value=None')
                     else:
                         if value:
-                            self.debug('key=%s, value=%s', key, json.dumps(value))
+                            self.debug('key=%s, value=%s', key, json.dumps(value, ensure_ascii=False))
                             if isinstance(value, list):
                                 ret[key].extend(value)
                             else:
@@ -112,35 +144,17 @@ class KnowledgeDBAPI(BaseLogger):
                         else:
                             self.warn('@@@@@@@@@@@@@@@@@@@@@@@ key=%s, value=None')
         else:
-            self.warn('@@@@@@@@@@@@@@@@@@@@@@@ docs=None')
+            self.warn('@@@@@@@@@@@@@@@@@@@@@@@ unexpected values docs=None')
+        self.debug('ret=%s', json.dumps(ret, ensure_ascii=False))
         return ret
 
     def search(self, subject="", predicates=[], query_str=""):
-        answer = {}
         self.debug('>>> start search <<<')
         if not query_str:
-            self.debug('subject=%s, predicate=%s', subject, json.dumps(predicates))
-            predicate_docs = self.property_collection.find({'uri': {'$in': predicates}})
-            if predicate_docs:
-                for doc_item in predicate_docs:
-                    tmp_answer = {}
-                    if doc_item:  # 谓语存在则进行查询
-                        predicate_type = doc_item.get('type', '')
-                        predicate_value = unicode2str(doc_item.get('uri', ''))
-                        self.debug('predicate_type=%s, predicate_value=%s',
-                                   predicate_type, predicate_value)
-                        if predicate_type == 'data_relationship':  # 谓语属于数据关系
-                            tmp_answer = self.search_node_info(subject, node_property=predicate_value)
-                        elif predicate_type == 'object_relationship':  # 谓语属于对象关系
-                            tmp_answer = self.search_neighbors_info(subject, predicate_value,
-                                                                    node_property='name')
-                        else:
-                            self.warn('@@@@@@@@@@@@@@@@@@@@@@@@ predicate_type is None')
-                    answer = dict(answer, **tmp_answer)
-            else:
-                self.warn('@@@@@@@@@@@@@@@@@@@@ predicates=%s, do not match', json.dumps(predicates))
+            answer = self.search_with_triple(subject, predicates)
         else:
             answer = self.search_with_query(query_str)
+        self.debug('>>> end search <<<')
         return answer
 
 
