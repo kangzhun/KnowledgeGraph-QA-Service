@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 # 自然语言处理工具包
+import json
+
 import jieba
 import jieba.posseg as pseg
 
@@ -20,19 +22,19 @@ class JiebaClient(BaseLogger):
     def seg(self, sentence):
         words = list()
         tags = list()
-        self.debug("sentence=%s", sentence)
         for item in pseg.cut(sentence):
             words.append(item.word)
             tags.append(item.flag)
-        self.debug("words=%s, tags=%s", " ".join(words), " ".join(tags))
+        self.debug("sentence=%s", sentence)
+        self.debug("words=%s, tags=%s", json.dumps(words, ensure_ascii=False), json.dumps(tags))
         return words, tags
 
     def seg_for_search(self, sentence):
         words = list()
-        self.debug("sentence=%s", sentence)
         for item in jieba.cut_for_search(sentence):
             words.append(item)
-        self.debug("words=%s", " ".join(words))
+        self.debug("sentence=%s", sentence)
+        self.debug("words=%s", json.dumps(words, ensure_ascii=False))
         return words
 
 
@@ -41,4 +43,5 @@ if __name__ == '__main__':
     while 1:
         query = raw_input('请输入句子:\n')
         _words = jieba_client.seg_for_search(query)
+        _words, _tags = jieba_client.seg(query)
         print " ".join(_words)
