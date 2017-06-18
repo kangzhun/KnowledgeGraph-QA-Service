@@ -47,3 +47,4 @@ MONGODB_KNOWLEDGE_TRIPLE = "biology-triple"
 MONGODB_KNOWLEDGE_QUERY = "biology-query"
 MONGODB_KNOWLEDGE_TEMPLATE = "biology-template"
 MONGODB_KNOWLEDGE_PROPERTY = 'biology-property'
+MONGODB_KNOWLEDGE_TEST_CORPUS = 'biology-test_corpus'

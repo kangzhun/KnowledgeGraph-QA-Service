@@ -3,8 +3,9 @@ import json
 
 import pysolr
 
+from const import SOLR_ESCAPE_PATTERN
 from logger import BaseLogger
-from utils import seg_doc_with_search
+from utils import seg_doc_with_search, unicode2str
 from config import SOLR_CORE_MAP, SOLR_DEFAULT_ROWS, SOLR_DEFAULT_RETURN_FIELDS
 
 
@@ -14,6 +15,7 @@ class SolrAPIHandler(BaseLogger):
         self.core_name = core_name
         self.debug('init solr_client core_name=%s', core_name)
         self.core = SOLR_CORE_MAP.get(core_name, "")
+        self.escape_pattern = SOLR_ESCAPE_PATTERN
         if self.core:
             self.solr_client = pysolr.Solr(self.core)
         else:
@@ -24,36 +26,70 @@ class SolrAPIHandler(BaseLogger):
         self.debug('>>> start search_index <<<')
         docs = None
         if self.solr_client:
-            self.debug("need_query_seg=False, query_str=%s, kwargs=%s", query_str, json.dumps(kwargs, ensure_ascii=False))
-            docs = self.solr_client.search(query_str.encode("utf-8"), **kwargs)
+            normal_query_str = self._escape_str(unicode2str(query_str))
+            self.debug("need_query_seg=False, query_str=%s, kwargs=%s",
+                       normal_query_str, json.dumps(kwargs, ensure_ascii=False))
+
+            docs = self.solr_client.search(normal_query_str, **kwargs)
         else:
             self.warn('@@@@@@@@@@@@@@@@@@@@@@ solr_client is None')
         self.debug('>>> end search_index <<<')
         return docs
 
+    def _escape_str(self, query_str):
+        self.debug('>>> start _escape_str <<<')
+        escape_query = query_str
+        for escape_key in self.escape_pattern.keys():
+            if escape_key in escape_query:
+                escape_query.replace(escape_key, self.escape_pattern[escape_key])
+        self.debug('query_str=%s, escape_result=%s', query_str, escape_query)
+        self.debug('>>> end _escape_str <<<')
+        return escape_query
+
+    def _escape_words(self, words):
+        self.debug('>>> start _escape_words <<<')
+        escape_words = words
+        if escape_words:
+            for escape_key in self.escape_pattern.keys():
+                for idx, word in enumerate(escape_words):
+                    if escape_key in escape_words:
+                        escape_words[idx] = escape_key.replace(escape_key, self.escape_pattern[escape_key])
+            self.debug('words:%s, escape_words=%s',
+                       json.dumps(words, ensure_ascii=False), json.dumps(escape_words, ensure_ascii=False))
+        else:
+            self.warn('@@@@@@@@@@@@@@@@@@@@@ unexpected values words=[]')
+        self.debug('>>> end _escape_words <<<')
+        return escape_words
+
     def search_with_seg(self, query, **kwargs):
         self.debug(">>> start search_with_seg <<<")
         docs = None
         if self.solr_client:
-            words_list = seg_doc_with_search(query)
+            words = seg_doc_with_search(query)
+            normal_words = [w.strip() for w in self._escape_words(words) if w.strip()]
             query_fields = kwargs.get("query_fields", [])
             search_fields = kwargs.get("search_fields", SOLR_DEFAULT_RETURN_FIELDS)
             rows = kwargs.get("rows", SOLR_DEFAULT_ROWS)
-            if query_fields:
-                query_list = list()
-                for field in query_fields:
-                    field += ':'
-                    query_str = "(" + " ".join([field + word for word in words_list]) + ")"
-                    query_list.append(query_str)
+            if normal_words:
+                if query_fields:
+                    query_list = list()
+                    for field in query_fields:
+                        field += ':'
+                        query_str = "(" + " ".join([field + word for word in normal_words]) + ")"
+                        query_list.append(query_str)
+                else:
+                    query_list = ["(" + " ".join(["*:" + word for word in normal_words]) + ")"]
+                q = "(%s)" % (" ".join(query_list))
+                self.debug("core=%s query_str='%s'", self.core_name, q)
+                self.debug("query_fields=%s, search_fields=%s, rows=%s",
+                           json.dumps(query_fields, ensure_ascii=False),
+                           json.dumps(search_fields, ensure_ascii=False),
+                           rows)
+                normal_q = self._escape_str(q)
+                docs = self.solr_client.search(normal_q, rows=rows, fl=','.join(search_fields))
             else:
-                query_list = ["(" + " ".join(["*:" + word for word in words_list]) + ")"]
-            q = "(%s)" % (" ".join(query_list))
-            self.debug("core=%s query_str='%s'", self.core_name, q)
-            self.debug("query_fields=%s, search_fields=%s, rows=%s",
-                       json.dumps(query_fields, ensure_ascii=False),
-                       json.dumps(search_fields, ensure_ascii=False),
-                       rows)
-            docs = self.solr_client.search(q, rows=rows, fl=','.join(search_fields))
+                self.warn('@@@@@@@@@@@@@@@@@@@@@@@@@@@ unexpected value words_list=%s',
+                          json.dumps(words))
         else:
             self.warn('@@@@@@@@@@@@@@@@@@@@@@ solr_client is None')
         self.debug(">>> end search_with_seg <<<")

@@ -90,7 +90,8 @@ class KnowledgeDBAPI(BaseLogger):
                 tmp_answer = {}
                 triple_subject = triple_item.get('subject', "")
                 triple_object = triple_item.get('object', "")
-                triple_predicates = triple_item.get('predicates', [])
+                triple_predicates = triple_item.get('predicate', [])
+                self.debug('triple_predicates=%s', json.dumps(triple_predicates, ensure_ascii=False))
                 predicate_doc = self.property_collection.find({'uri': {'$in': triple_predicates}})
                 for predicate_item in predicate_doc:
                     predicate_type = predicate_item.get('type', '')
