@@ -8,3 +8,15 @@ CYPER_TEMPLATE = {
     "neighbors_property": u"MATCH (n {name: '%s'})-[r: %s]-(neighbors) RETURN neighbors.%s",
     "neighbors_data": u"MATCH (n {name: '%s'})-[r: %s]-(neighbors) RETURN neighbors.name",
 }
+
+
+SOLR_ESCAPE_PATTERN = {"+": "\+",
+                       "\\": "\\\\",
+                       "!": "\!",
+                       "/": "\/",
+                       "^": "\^",
+                       "-": "\-",
+                       ":": "",
+                       "(": "",
+                       ")": "",
+                       "~": "\~"}

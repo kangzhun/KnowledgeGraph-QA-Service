@@ -21,27 +21,30 @@ class TemplateBot(BaseLogger):
         self.debug('>>> start _match_predicate <<<')
         templates_docs = self.template_core.search_with_seg(self.query, query_fields=['key_index'],)
         docs = []
-        for tmp_item in templates_docs:
-            pattern_str = tmp_item.get('pattern', '')
-            predicates = tmp_item.get('predicates', [])
-            priority = tmp_item.get('priority', 4)
-            missing_tuple = tmp_item.get('missing_tuple', '')
-            doc = {'pattern': pattern_str, 'predicates': predicates,
-                   'priority': priority, 'missing_tuple': missing_tuple}
-            pattern = re.compile(ur'%s' % pattern_str)
-            is_match = pattern.match(str2unicode(self.query))
-            if is_match:
-                self.debug('got match pattern=%s, predicates=%s, priority=%s, missing_tuple=%s',
-                           pattern_str, json.dumps(predicates, ensure_ascii=False), priority, missing_tuple)
-                doc['match_str'] = is_match.group('title')
-                if priority > 1:
-                    docs.append(doc)
+        if templates_docs:
+            for tmp_item in templates_docs:
+                pattern_str = tmp_item.get('pattern', '')
+                predicates = tmp_item.get('predicates', [])
+                priority = tmp_item.get('priority', 4)
+                missing_tuple = tmp_item.get('missing_tuple', '')
+                doc = {'pattern': pattern_str, 'predicates': predicates,
+                       'priority': priority, 'missing_tuple': missing_tuple}
+                pattern = re.compile(ur'%s' % pattern_str)
+                is_match = pattern.match(str2unicode(self.query))
+                if is_match:
+                    self.debug('got match pattern=%s, predicates=%s, priority=%s, missing_tuple=%s',
+                               pattern_str, json.dumps(predicates, ensure_ascii=False), priority, missing_tuple)
+                    doc['match_str'] = is_match.group('title')
+                    if priority > 1:
+                        docs.append(doc)
+                    else:
+                        docs = [doc, ]
+                        self.debug(">>> end _match_predicate <<<")
+                        return docs
                 else:
-                    docs = [doc, ]
-                    self.debug(">>> end _match_predicate <<<")
-                    return docs
+                    self.debug("don't match pattern%s", pattern_str)
             else:
-                self.debug("don't match pattern%s", pattern_str)
+                self.warn('@@@@@@@@@@@@@@@@@@@@@@ unexpected values templates_docs=None')
         self.debug(">>> end _match_predicate <<<")
         return docs
 
@@ -60,10 +63,10 @@ class TemplateBot(BaseLogger):
             return ret
         self.debug('target_field=%s, query_fields=%s', target_field, json.dumps(query_fields))
         triple_docs = self.triple_core.search_with_seg(sentence, query_fields=query_fields, rows=1)
-        triple_list = list(triple_docs)
-        self.debug("got triple_docs=%s", json.dumps(triple_list, ensure_ascii=False))
-        if triple_list:
-            ret = triple_list[0].get(target_field, '')
+        if triple_docs:
+            triple_docs = list(triple_docs)
+            self.debug("got triple_docs=%s", json.dumps(triple_docs, ensure_ascii=False))
+            ret = triple_docs[0].get(target_field, '')
             self.debug("got ret=%s", ret)
         else:
             self.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@ triple_docs is None")
@@ -79,12 +82,12 @@ class TemplateBot(BaseLogger):
             match_str = doc.get('match_str', '')
             predicates = doc.get('predicates', [])
             if missing_tuple == 'subject':
-                triple_subject = self._match_subject_and_object(match_str, missing_tuple)
-                triple_doc = {'subject': triple_subject, 'predicate': predicates, 'object': ""}
-                triple_docs.append(triple_doc)
-            elif missing_tuple == 'object':
                 triple_object = self._match_subject_and_object(match_str, missing_tuple)
                 triple_doc = {'subject': "", 'predicate': predicates, 'object': triple_object}
+                triple_docs.append(triple_doc)
+            elif missing_tuple == 'object':
+                triple_subject = self._match_subject_and_object(match_str, missing_tuple)
+                triple_doc = {'subject': triple_subject, 'predicate': predicates, 'object': ""}
                 triple_docs.append(triple_doc)
             else:
                 self.warn('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ unexpected value missing_tuple=%s', missing_tuple)
