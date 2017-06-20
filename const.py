@@ -20,3 +20,5 @@ SOLR_ESCAPE_PATTERN = {"+": "\+",
                        "(": "",
                        ")": "",
                        "~": "\~"}
+
+TRIPLE_MATCH_THRESHOLD = 1.0

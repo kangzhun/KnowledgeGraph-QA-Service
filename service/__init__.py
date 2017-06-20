@@ -1,0 +1,28 @@
+# -*- coding: utf-8 -*-
+
+
+def longest_common_substring(query, retrieval_str):
+    """
+    计算问句与检索结果的最长公共子串
+    :param query: 问句
+    :param retrieval_str:检索结果
+    :return: 最长公共子串长度
+    """
+    # 生成0矩阵，为方便后续计算，比字符串长度多了一列
+    m = [[0 for i in range(len(retrieval_str) + 1)] for j in range(len(query) + 1)]
+    mmax = 0  # 最长匹配的长度
+    p = 0  # 最长匹配对应在query中的最后一位
+    for i in range(len(query)):
+        for j in range(len(retrieval_str)):
+            if query[i] == retrieval_str[j]:
+                m[i + 1][j + 1] = m[i][j] + 1
+                if m[i + 1][j + 1] > mmax:
+                    mmax = m[i + 1][j + 1]
+                    p = i + 1
+    return query[p - mmax:p], mmax  # 返回最长子串及其长度
+
+if __name__ == '__main__':
+    qa = ['你', '是', '谁']
+    qb = ['你', '谁', '啊']
+    sub_string, length = longest_common_substring(qb, qa)
+    print sub_string, length

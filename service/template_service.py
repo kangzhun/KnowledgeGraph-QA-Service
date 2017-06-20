@@ -3,7 +3,9 @@ import json
 import re
 
 from config import TEMPLATE_CORE_NAME, TRIPLE_CORE_NAME
-from utils import str2unicode, normalize_query
+from const import TRIPLE_MATCH_THRESHOLD
+from service import longest_common_substring
+from utils import str2unicode, normalize_query, seg_doc
 from utils.logger import BaseLogger
 from utils.neo4j_api import KnowledgeDBAPI
 from utils.solr_api import SolrAPIHandler
@@ -48,6 +50,37 @@ class TemplateBot(BaseLogger):
         self.debug(">>> end _match_predicate <<<")
         return docs
 
+    def _sort_retrieval_docs(self, sentence, triple_docs, target_field):
+        self.debug('>>> start _sort_retrieval_docs <<<')
+        words, tags = seg_doc(sentence)
+        sentence_words = [w.strip() for w in words if w.strip()]
+        target_field_map = {"triple_object": "triple_subject_index",
+                            "triple_subject": "triple_subject_index"}
+        doc_sentence_dict = dict()
+        match_triple_docs = list()
+        for doc_item in triple_docs:
+            doc_sentence = doc_item.get(target_field_map[target_field], "")
+            if doc_sentence not in doc_sentence_dict.keys():
+                doc_words = [w.strip() for w in doc_sentence.split()]
+                self.debug('sentence_words=%s, doc_words=%s',
+                           json.dumps(sentence_words, ensure_ascii=False), json.dumps(doc_words, ensure_ascii=False))
+                sub_string, length = longest_common_substring(sentence_words, doc_words)
+                score = len(sub_string)/float(len(doc_words))
+                doc_item['score'] = score
+                doc_item['length'] = len(doc_words)
+                self.debug('score=%s, length=%s', doc_item['score'], doc_item['length'])
+                doc_sentence_dict[doc_sentence] = (score, len(doc_words))
+            else:
+                doc_item['score'], doc_item['length'] = doc_sentence_dict[doc_sentence]
+            if doc_item['score'] >= TRIPLE_MATCH_THRESHOLD:
+                match_triple_docs.append(doc_item)
+        if match_triple_docs:
+            match_triple_docs.sort(key=lambda x: x['length'], reverse=True)
+        else:
+            self.warn("@@@@@@@@@@@@@@@@@@@@@@@@@ don't match any triple_docs, there is no such instance!!!!")
+        self.debug('>>> end _sort_retrieval_docs <<<')
+        return match_triple_docs
+
     def _match_subject_and_object(self, sentence, missing_triple):
         self.debug('>>> start _match_subject_and_object <<<')
         self.debug('sentence=%s, missing_triple=%s', sentence, missing_triple)
@@ -62,12 +95,15 @@ class TemplateBot(BaseLogger):
             self.debug('@@@@@@@@@@@@@@@@@@@@@@@@@@@ unexpected values missing_triple=%s', missing_triple)
             return ret
         self.debug('target_field=%s, query_fields=%s', target_field, json.dumps(query_fields))
-        triple_docs = self.triple_core.search_with_seg(sentence, query_fields=query_fields, rows=1)
+        triple_docs = self.triple_core.search_with_seg(sentence, query_fields=query_fields)
         if triple_docs:
             triple_docs = list(triple_docs)
-            self.debug("got triple_docs=%s", json.dumps(triple_docs, ensure_ascii=False))
-            ret = triple_docs[0].get(target_field, '')
-            self.debug("got ret=%s", ret)
+            self.debug("got triple_docs=%s", len(triple_docs))
+            sorted_triple_docs = self._sort_retrieval_docs(sentence, triple_docs, target_field)
+            self.debug("got sorted_triple_docs=%s", len(sorted_triple_docs))
+            if sorted_triple_docs:
+                ret = sorted_triple_docs[0].get(target_field, '')
+                self.debug("got ret=%s", ret)
         else:
             self.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@ triple_docs is None")
         self.debug(">>> end _match_subject_and_object <<<")
