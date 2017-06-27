@@ -6,7 +6,7 @@ from config import LOGGER_PATH, LOGGER_NAME
 
 
 class BaseLogger(object):
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
 

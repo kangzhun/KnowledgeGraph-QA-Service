@@ -6,7 +6,7 @@ from pymongo import MongoClient
 
 from config import NEO4J_HOST_PORT, NEO4J_USER, NEO4J_PWD, NEO4J_URL, MONGODB_HOST, MONGODB_PORT, MONGODB_DBNAME, \
     MONGODB_KNOWLEDGE_PROPERTY
-from const import CYPER_TEMPLATE
+from const import CYPER_SUBJECT_TEMPLATE, CYPER_OBJECT_TEMPLATE
 from utils import str2unicode, unicode2str
 from utils.logger import BaseLogger
 
@@ -28,9 +28,10 @@ class KnowledgeDBAPI(BaseLogger):
         docs = {}
         self.debug('>>> start search_node_info <<<')
         node_property = kwargs.get('node_property', '')
-        self.debug('search node with name=%s, property=%s', name, node_property)
+        triple_object = kwargs.get('triple_object', '')
+        self.debug('search node with name=%s, property=%s, object=%s', name, node_property, triple_object)
         if name and node_property:
-            condition = CYPER_TEMPLATE['node_property'] % (str2unicode(name), node_property)
+            condition = CYPER_SUBJECT_TEMPLATE['node_property'] % (str2unicode(name), node_property)
             self.debug('condition=%s', condition)
             try:
                 data = self.graph.run(condition).data()
@@ -40,7 +41,7 @@ class KnowledgeDBAPI(BaseLogger):
             docs = self._extract_answer(data)
             if not docs:
                 self.debug('search equal_node name=%s, property=%s', name, node_property)
-                condition = CYPER_TEMPLATE['equal_node_property'] % (str2unicode(name), node_property)
+                condition = CYPER_SUBJECT_TEMPLATE['equal_node_property'] % (str2unicode(name), node_property)
                 self.debug('condition=%s', condition)
                 try:
                     data = self.graph.run(condition).data()
@@ -48,8 +49,18 @@ class KnowledgeDBAPI(BaseLogger):
                     self.error('illegal query=%s', condition)
                     data = {}
                 docs = self._extract_answer(data)
+        elif triple_object and node_property:
+            condition = CYPER_OBJECT_TEMPLATE['node_name'] % (node_property, str2unicode(triple_object))
+            self.debug('condition=%s', condition)
+            try:
+                data = self.graph.run(condition).data()
+            except Exception, e:
+                self.error('illegal query=%s', condition)
+                data = {}
+            docs = self._extract_answer(data)
         else:
-            self.warn('@@@@@@@@@@@@@@ unexpected name=%s, property=%s', name, node_property)
+            self.warn('@@@@@@@@@@@@@@ unexpected name=%s, property=%s, triple_object=%s',
+                      name, node_property, triple_object)
         self.debug('>>> end search_node_info <<<')
         return docs
 
@@ -64,10 +75,10 @@ class KnowledgeDBAPI(BaseLogger):
             self.debug('search node name=%s, relationship=%s', name, relationship)
         if name:
             if node_property:
-                condition = CYPER_TEMPLATE['neighbors_property'] % \
+                condition = CYPER_SUBJECT_TEMPLATE['neighbors_property'] % \
                             (str2unicode(name), relationship, node_property)
             else:
-                condition = CYPER_TEMPLATE['neighbors_data'] % \
+                condition = CYPER_SUBJECT_TEMPLATE['neighbors_data'] % \
                             (str2unicode(name), relationship)
             self.debug('condition=%s', condition)
             try:
@@ -101,7 +112,9 @@ class KnowledgeDBAPI(BaseLogger):
                         if triple_subject:
                             tmp_answer = self.search_node_info(triple_subject, node_property=predicate_value)
                         elif triple_object:
-                            pass
+                            tmp_answer = self.search_node_info(triple_subject,
+                                                               node_property=predicate_value,
+                                                               triple_object=triple_object)
                     elif predicate_type == 'object_relationship':  # 谓语属于对象关系
                         if triple_subject:
                             tmp_answer = self.search_neighbors_info(triple_subject, predicate_value,
@@ -110,7 +123,7 @@ class KnowledgeDBAPI(BaseLogger):
                             pass
                     else:
                         self.warn('@@@@@@@@@@@@@@@@@@@@@@@@ predicate_type is None')
-                answer = dict(answer, **tmp_answer)
+                    answer = dict(answer, **tmp_answer)
         else:
             self.warn('@@@@@@@@@@@@@@@@@@@@ unexpected value triple_doc=', json.dumps(triple_doc, ensure_ascii=False))
         self.debug('>>> end search_with_triple <<<')
@@ -174,11 +187,15 @@ class KnowledgeDBAPI(BaseLogger):
 
 if __name__ == '__main__':
     knowledge_db = KnowledgeDBAPI()
-    _triple_doc = [{'subject': '桃花', 'predicates': ['common_consistedOf', ], 'object': ""}]
+    _triple_doc = [{'subject': '桃花', 'predicate': ['common_consistedOf', ], 'object': ""}]
     _ret = knowledge_db.search(_triple_doc)
     print _ret
 
-    _triple_doc = [{'subject': '细胞凋亡', 'predicates': ['biology_mechanism', 'biology_concept'], 'object': ""}]
+    _triple_doc = [{'subject': '细胞凋亡', 'predicate': ['biology_mechanism', 'biology_concept'], 'object': ""}]
+    _ret = knowledge_db.search(_triple_doc)
+    print _ret
+
+    _triple_doc = [{'subject': '', 'predicate': ['biology_Secretory_fluid'], 'object': "胆汁"}]
     _ret = knowledge_db.search(_triple_doc)
     print _ret
 

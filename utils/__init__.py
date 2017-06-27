@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import codecs
+
+from const import DEFAULT_SUBJECT_SYNONYM
 from utils.nlu_api import JiebaClient
 
 seg_client = JiebaClient()
@@ -31,3 +34,23 @@ def str2unicode(utf_str):
 def normalize_query(query):
     normal_query = unicode2str(query).strip()
     return normal_query
+
+
+def load_subject_synonym(path):
+    synonyms = dict()
+    with codecs.open(path, mode='r', encoding='utf-8') as fr:
+        lines = fr.readlines()
+        for line in lines:
+            line_list = line.strip().split(',')
+            if len(line_list) == 2:
+                key = line_list[0]
+                value = line_list[1]
+                if key in synonyms.keys():
+                    synonyms[key].append(value)
+                else:
+                    synonyms[key] = [value, ]
+    return synonyms
+
+
+if __name__ == '__main__':
+    print load_subject_synonym(DEFAULT_SUBJECT_SYNONYM)
