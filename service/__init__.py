@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+from const import DEFAULT_WORDING_EMBEDDING_PATH
+from wordembedding.wordvector import load_embedding
+
+wording_embedding = load_embedding(DEFAULT_WORDING_EMBEDDING_PATH)
 
 
 def longest_common_substring(query, retrieval_str):
@@ -21,8 +25,20 @@ def longest_common_substring(query, retrieval_str):
                     p = i + 1
     return query[p - mmax:p], mmax  # 返回最长子串及其长度
 
+
+def calculate_wmd(words_1, words_2):
+    """
+    计算句子1与句子2的文档迁移距离
+    :param words_1:
+    :param words_2:
+    :return:
+    """
+    score = wording_embedding.wmdistance(words_1, words_2)
+    return score
+
+
 if __name__ == '__main__':
-    qa = ['你', '是', '谁']
-    qb = ['你', '谁', '啊']
+    qa = [u'你', u'是', u'谁']
+    qb = [u'你', u'谁', u'啊']
     sub_string, length = longest_common_substring(qb, qa)
     print sub_string, length

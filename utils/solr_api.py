@@ -42,7 +42,8 @@ class SolrAPIHandler(BaseLogger):
         for escape_key in self.escape_pattern.keys():
             if escape_key in escape_query:
                 escape_query.replace(escape_key, self.escape_pattern[escape_key])
-        self.debug('query_str=%s, escape_result=%s', query_str, escape_query)
+        self.debug('query_str=%s', query_str)
+        self.debug('escape_result=%s', escape_query)
         self.debug('>>> end _escape_str <<<')
         return escape_query
 
@@ -54,7 +55,7 @@ class SolrAPIHandler(BaseLogger):
                 for idx, word in enumerate(escape_words):
                     if escape_key in escape_words:
                         escape_words[idx] = escape_key.replace(escape_key, self.escape_pattern[escape_key])
-            self.debug('words:%s, escape_words=%s',
+            self.debug('words=%s, escape_words=%s',
                        json.dumps(words, ensure_ascii=False), json.dumps(escape_words, ensure_ascii=False))
         else:
             self.warn('@@@@@@@@@@@@@@@@@@@@@ unexpected values words=[]')
@@ -85,8 +86,7 @@ class SolrAPIHandler(BaseLogger):
                            json.dumps(query_fields, ensure_ascii=False),
                            json.dumps(search_fields, ensure_ascii=False),
                            rows)
-                normal_q = self._escape_str(q)
-                docs = self.solr_client.search(normal_q, rows=rows, fl=','.join(search_fields))
+                docs = self.solr_client.search(q, rows=rows, fl=','.join(search_fields))
             else:
                 self.warn('@@@@@@@@@@@@@@@@@@@@@@@@@@@ unexpected value words_list=%s',
                           json.dumps(words))
