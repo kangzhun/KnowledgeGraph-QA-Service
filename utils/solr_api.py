@@ -71,6 +71,7 @@ class SolrAPIHandler(BaseLogger):
             query_fields = kwargs.get("query_fields", [])
             search_fields = kwargs.get("search_fields", SOLR_DEFAULT_RETURN_FIELDS)
             rows = kwargs.get("rows", SOLR_DEFAULT_ROWS)
+            extend_condition = kwargs.get("extend_condition", "")
             if normal_words:
                 if query_fields:
                     query_list = list()
@@ -80,12 +81,10 @@ class SolrAPIHandler(BaseLogger):
                         query_list.append(query_str)
                 else:
                     query_list = ["(" + " ".join(["*:" + word for word in normal_words]) + ")"]
-                q = "(%s)" % (" ".join(query_list))
+                q = "+(%s)" % (" ".join(query_list))
+                if extend_condition:
+                    q += extend_condition
                 self.debug("core=%s query_str='%s'", self.core_name, q)
-                self.debug("query_fields=%s, search_fields=%s, rows=%s",
-                           json.dumps(query_fields, ensure_ascii=False),
-                           json.dumps(search_fields, ensure_ascii=False),
-                           rows)
                 docs = self.solr_client.search(q, rows=rows, fl=','.join(search_fields))
             else:
                 self.warn('@@@@@@@@@@@@@@@@@@@@@@@@@@@ unexpected value words_list=%s',
@@ -97,9 +96,9 @@ class SolrAPIHandler(BaseLogger):
 
 if __name__ == "__main__":
     _core_name = "biology-triple"
-    _query_fields = ['triple_subject_index']
+    _query_fields = ['attribute_date_index']
     solr_api = SolrAPIHandler(_core_name)
-    _docs = solr_api.search_with_seg(u"胚胎是如何形成的", query_fields=_query_fields)
+    _docs = solr_api.search_with_seg(u"胚胎是如何形成的", query_fields=_query_fields, extend_condition="+(attribute_name: name)")
     for doc in _docs:
         print '#' * 100
         for key in doc.keys():

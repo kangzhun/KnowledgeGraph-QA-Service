@@ -25,16 +25,12 @@ class JiebaClient(BaseLogger):
         for item in pseg.cut(sentence):
             words.append(item.word)
             tags.append(item.flag)
-        self.debug("sentence=%s", sentence)
-        self.debug("words=%s, tags=%s", json.dumps(words, ensure_ascii=False), json.dumps(tags))
         return words, tags
 
     def seg_for_search(self, sentence):
         words = list()
         for item in jieba.cut_for_search(sentence):
             words.append(item)
-        self.debug("sentence=%s", sentence)
-        self.debug("words=%s", json.dumps(words, ensure_ascii=False))
         return words
 
 
