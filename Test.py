@@ -3,14 +3,15 @@ import os
 from time import strftime, localtime
 
 from pymongo import MongoClient
+from tqdm import tqdm
 
-from config import MONGODB_HOST, MONGODB_PORT, MONGODB_DBNAME, MONGODB_KNOWLEDGE_TEST_CORPUS, HERE
+from config import MONGODB_HOST, MONGODB_PORT, MONGODB_DBNAME, MONGODB_TEST_CORPUS, HERE
 from service.retrieval_service import RetrievalBot
 from service.template_service import TemplateBot
 
 client = MongoClient(MONGODB_HOST, MONGODB_PORT)
 db = client.get_database(MONGODB_DBNAME)
-test_corpus_collection = db.get_collection(MONGODB_KNOWLEDGE_TEST_CORPUS)
+test_corpus_collection = db.get_collection(MONGODB_TEST_CORPUS)
 
 
 if __name__ == '__main__':
@@ -23,7 +24,7 @@ if __name__ == '__main__':
     answer_path = os.path.join(HERE, 'data/test_result/answer_%s_%s.csv' % (model_name, start_time))
     fw_missing = open(missing_path, 'w')
     fw_answer = open(answer_path, 'w')
-    for doc in test_corpus_docs:
+    for doc in tqdm(test_corpus_docs):
         query = doc['query']
         answer = doc['answer']
         try:

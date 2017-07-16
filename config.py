@@ -34,17 +34,20 @@ SOLR_DEFAULT_RETURN_FIELDS = ['*', 'score']
 CUSTOM_DICTIONARY_PATH = os.path.join(HERE, "data/dictionary", "custom_dictionary.txt")
 
 # neo4j config
-NEO4J_HOST_PORT = "localhost:7474"
-NEO4J_USER = "kangzhun"
+NEO4J_HOST_PORT = "localhost:7475"
+NEO4J_USER = "neo4j"
 NEO4J_PWD = "741953"
-NEO4J_URL = "http://localhost:7474/db/data/"
+NEO4J_URL = "http://localhost:7475/db/data/"
 
+# mongodb config
 # mongodb config
 MONGODB_HOST = "127.0.0.1"
 MONGODB_PORT = 27017
 MONGODB_DBNAME = "biology-db"
-MONGODB_KNOWLEDGE_TRIPLE = "biology-triple"
-MONGODB_KNOWLEDGE_QUERY = "biology-query"
-MONGODB_KNOWLEDGE_TEMPLATE = "biology-template"
-MONGODB_KNOWLEDGE_PROPERTY = 'biology-property'
-MONGODB_KNOWLEDGE_TEST_CORPUS = 'biology-test_corpus'
+MONGODB_BIOLOGY_TRIPLE = "biology-triple"
+MONGODB_BIOLOGY_QA = "biology-qa"
+MONGODB_BIOLOGY_TEMPLATE = "biology-template"
+MONGODB_BIOLOGY_PROPERTY = 'biology-property'
+MONGODB_BIOLOGY_NODE = 'biology-node'
+MONGODB_BIOLOGY_RELATION = 'biology-relation'
+MONGODB_TEST_CORPUS = 'biology-test_corpus'

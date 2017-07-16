@@ -32,11 +32,11 @@ def str2unicode(utf_str):
 
 
 def normalize_query(query):
-    normal_query = unicode2str(query).strip()
+    normal_query = unicode2str(query).strip()  # 转换为unicode编码，并去掉句子开头和结尾的空格和回车
     return normal_query
 
 
-def load_subject_synonym(path):
+def load_entity_synonym(path):
     synonyms = dict()
     with codecs.open(path, mode='r', encoding='utf-8') as fr:
         lines = fr.readlines()
@@ -53,4 +53,4 @@ def load_subject_synonym(path):
 
 
 if __name__ == '__main__':
-    print load_subject_synonym(DEFAULT_SUBJECT_SYNONYM)
+    print load_entity_synonym(DEFAULT_SUBJECT_SYNONYM)
